@@ -1,0 +1,232 @@
+#install.packages("tm")
+#install.packages("SnowballC")
+#install.packages("ggplot2")
+#install.packages("wordcloud")
+
+setwd("C:/Users/lab718-13/Desktop/data")
+getwd()
+library(tm)
+
+Data<-read.csv("Call of Duty_Ghosts.csv", #read your file selected for analysis
+               header = TRUE,
+               sep = ",", # or you can use ";"
+               strip.white = TRUE, 
+               comment.char = "#"
+)
+head(Data, 1)
+
+
+
+# Data<-read.csv("Dying Light.csv", #read your file selected for analysis
+#                header = TRUE,
+#                sep = ",", # or you can use ";"
+#                strip.white = TRUE, 
+#                comment.char = "#"
+# )
+# head(Data,1)
+
+Data = as.data.frame.matrix(Data[1:3000,]) 
+data <- data.frame(review_text=Data[,2])
+head(data)
+head(data$review_text_text)
+
+#install.packages("stringr") 
+library(stringr)
+
+data$review_text = str_replace_all(data$review_text, "/"," ") 
+data$review_text = str_replace_all(data$review_text, "&#x27;|&quot;|&#x2F;", "'") 
+data$review_text = str_replace_all(data$review_text, "<a(.*?)>", " ") 
+data$review_text = str_replace_all(data$review_text, "&gt;|&lt;|&amp;", " ") 
+data$review_text = str_replace_all(data$review_text, "&#[:digit:]+;", " ") 
+data$review_text = str_remove_all(data$review_text, "<[^>]*>")
+
+n<-length(data$review_text)
+n
+
+docs <-VCorpus(x = VectorSource(data$review),
+               readerControl = list(reader=readPlain,
+                                    language="en")) 
+dataframe<-data.frame(text=unlist(sapply(docs, `[`, "content")), stringsAsFactors=F)
+
+docs
+writeLines(as.character(docs[[1]]))                                   
+docs <- tm_map(docs,removePunctuation)
+docs <- tm_map(docs, removeNumbers)
+#docs <- tm_map(docs, PlainTextDocument)
+writeLines(as.character(docs[[1]]))
+for (j in seq(docs)) {
+  docs[[j]] <- gsub("/", "", docs[[j]])
+  docs[[j]] <- gsub("@", "", docs[[j]])
+  docs[[j]] <- gsub("–", "", docs[[j]])
+  docs[[j]] <- gsub("’", "", docs[[j]])
+  docs[[j]] <- gsub("“", "", docs[[j]])
+  docs[[j]] <- gsub("…", "", docs[[j]])
+  docs[[j]] <- gsub("‘", "", docs[[j]])
+  docs[[j]] <- gsub(")", "", docs[[j]])
+  docs[[j]] <- gsub("”", "", docs[[j]])
+}
+writeLines(as.character(docs[[1]]))
+
+docs <- tm_map(docs, tolower) 
+writeLines(as.character(docs[[1]]))
+
+length(stopwords("english")) 
+stopwords("english")
+
+docs <- tm_map(docs, removeWords, stopwords("English"))
+writeLines(as.character(docs[[1]]))
+
+setwd("C:/Users/lab718-13/Desktop/data")
+StW<-read.table("StopWords.txt")
+StW
+
+StWW<-as.character(StW$V1)
+StWW
+
+docs <- tm_map(docs, removeWords, StWW)
+writeLines(as.character(docs[[1]]))
+library(SnowballC)
+stemDocument("modelling", language = "english") 
+stemDocument("modeller", language = "english") 
+stemDocument("models", language = "english")
+
+for (j in seq(docs)) {
+  docs[[j]]<-stemDocument(docs[[j]], language = "english") 
+} 
+docs <- tm_map(docs, PlainTextDocument)
+writeLines(as.character(docs[[1]]))
+
+dtm <- DocumentTermMatrix(docs)
+dtm 
+
+rownames(dtm)<-seq(1,n)
+rownames(dtm)
+inspect(dtm[1:5, 140:145])
+
+dtmr <-DocumentTermMatrix(docs, control=list(wordLengths=c(3, 20),bounds = list(global = c(2,Inf))))
+rownames(dtmr)<-seq(1,n)
+rownames(dtmr)
+
+dtmr
+m0 <- as.matrix(dtm)
+write.csv(m0, file="DocumentTermMatrix.csv")
+m1 <- as.matrix(dtmr)
+write.csv(m1, file="DocumentTermMatrix_1.csv")
+
+freqr <- colSums(as.matrix(dtmr))
+length(freqr)
+freq <- sort(freqr, decreasing=TRUE)
+head (freq,14)
+
+mk<-min(head(freq, 30))
+mk
+wf=data.frame(word=names(freq),freq=freq)
+library(ggplot2)
+# Zipf's law with minimal frequency = mk
+#dev.new(width = 100, height = 100, unit = "px") #could be useful
+p <- ggplot(subset(wf, freq>mk), aes(x = reorder(word, -freq), y = freq))
+p <- p + geom_bar(stat="identity")
+p <- p + theme(axis.text.x=element_text(angle=45, hjust=1))
+p
+
+library(wordcloud)
+set.seed(42)
+wordcloud(names(freq),freq, min.freq=70)
+
+set.seed(142) 
+wordcloud(names(freq), freq, max.words=100)
+        
+wordcloud(names(freq), freq, min.freq=70,colors=brewer.pal(6, "Dark2"))
+
+set.seed(142) 
+dark2 <- brewer.pal(6, "Dark2") 
+wordcloud(names(freq), freq, max.words=100, rot.per=0.2, colors=dark2)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+install.packages("topicmodels")
+library(tm)
+library(topicmodels)
+
+Data <-read.csv("DocumentTermMatrix.csv", 
+                header = TRUE, #are there column names in 1st row?
+                sep = ",", #what separates rows?
+                strip.white = TRUE, #strip out extra white space in strings. 
+                fill = TRUE, #fill in rows that have unequal numbers of columns
+                comment.char = "#", #character used for comments that should not be read in
+                stringsAsFactors = FALSE #Another control for deciding whether characters should be converted to factor
+)
+
+dtm1 = as.data.frame.matrix(Data)
+n<-nrow(Data)
+dtm1 [1:10,1:10]
+dtm<-dtm1[,-1]
+
+rownames(dtm)<-seq(1,n)
+rownames(dtm)
+dtm[1:10,1:10]
+
+#check the presence of rows with a zero's sum
+raw.sum=apply(dtm,1,FUN=sum) #sum by raw for each raw of the matrix
+raw.sum
+#number of rows with a zero's sum
+mmm<-nrow(dtm[raw.sum==0,])
+mmm
+# if mmm=0, only create new matrix dtm2 and NN (number of rows in DTM)
+# if mmm>0, delete the rows with zero's sum from dtm
+if (mmm==0) {
+  dtm2<-dtm
+  NN<-nrow(dtm)
+  NN
+} else {
+  dtm2<-dtm[raw.sum!=0,]
+  NN<-nrow(dtm2)
+}
+#number of comments before deleting
+n
+#number of comments after deleting
+NN
+#new matrix dtm2
+dtm2
+
+#__________LDA Topic Modelling______________________
+# _____________LDA Setting__________________________
+# @burnin : number of omitted Gibbs iterations at beginning
+# @thin : number of omitted in-between @iter Gibbs iterations
+# @nstart indicates the number of repeated runs with random initialization
+# @ seed needs to have the length nstart
+# If best=TRUE only the best model over all runs with respect to the log-likelihood is returned
+burnin <- 4000
+iter <- 2000
+thin <- 500
+seed <-list(2003,5,63,100001,765)
+nstart <- 8
+best <- TRUE
+
+k <- 8
+
+ldaOut <- LDA(dtm2, k, method="Gibbs", control=list(nstart=nstart, seed = seed, best=best, burnin = burnin, iter = iter, thin=thin))
+str(ldaOut)
+
+
